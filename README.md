@@ -33,7 +33,7 @@ error spectra, and tests whether a simple intervention can close the gap.
 
 ```
 proposal/    Proposal (LaTeX + PDF)
-code/        Baseline and experiments (to be added)
+code/        Runnable 2x2 baseline (see code/README.md)
 ```
 
 ## Baseline
