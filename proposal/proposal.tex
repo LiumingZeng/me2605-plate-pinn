@@ -1,0 +1,108 @@
+\documentclass[10pt]{article}
+
+\usepackage[margin=0.72in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+\usepackage{titlesec}
+
+\setlist[itemize]{leftmargin=*,noitemsep,topsep=1pt,parsep=0pt}
+\setlist[enumerate]{leftmargin=*,noitemsep,topsep=1pt,parsep=0pt}
+\titlespacing*{\section}{0pt}{5pt plus 1pt minus 1pt}{2pt}
+\titleformat{\section}{\normalfont\normalsize\bfseries}{\thesection.}{0.5em}{}
+\setlength{\parskip}{1pt}
+\setlength{\parindent}{0pt}
+\pagestyle{plain}
+
+\begin{document}
+
+\begin{center}
+{\large\bfseries Disentangling Energy and Residual Losses in Physics-Informed\\[1pt]
+Neural Networks for Fourth-Order Plate Bending}\\[2pt]
+{\normalsize Is the energy formulation's advantage just conditioning?}\\[2pt]
+{\small Liuming Zeng \quad ME2605 Training Neural Networks, Fall 2026 \quad November 18, 2026}
+\end{center}
+\vspace{-6pt}
+
+\section{Task and Baseline}
+
+\textbf{Task.} I study the thermoelastic thin-plate inverse problem from my master's thesis~\cite{zeng2026}. A clamped isotropic square plate occupies $\Omega=[-1,1]^2$; the through-thickness temperature is linear, $T(x,y,z)=T_1(x,y)z$, and $T_1$ is unknown. Given $N_{\mathrm{obs}}=200$ sparse deflection observations with $1\%$ Gaussian noise and the heat-flux condition $-\lambda\nabla T\cdot n=q_T$, recover $T_1$. The forward model is
+\begin{equation}
+D\nabla^4 w=-\frac{1}{1-\nu}\nabla^2 M_T,\qquad
+M_T=\alpha E\!\int_{-h/2}^{h/2}T\,z\,dz=\frac{\alpha E h^3}{12}T_1+o(h^5),
+\label{eq:plate}
+\end{equation}
+with hard clamped boundary conditions $w=\partial w/\partial n=0$.
+
+\textbf{Networks and training.} Two tanh MLPs: $w$-net $(2\to4\times32\to1)$ and $T$-net $(2\to4\times128\to1)$. Stage I fits $w$ to the observations and the clamped boundary (3000 Adam steps, lr $10^{-2}$, $\lambda_w=10$). Stage II freezes $w$ and optimizes $T$ using either the total potential energy $\Pi[w]=\int_\Omega[\tfrac{D}{2}((\Delta w)^2-2(1-\nu)(w_{xx}w_{yy}-w_{xy}^2))-q\,w]\,d\Omega$ or the fourth-order residual $R=D\nabla^4w+\tfrac{1}{1-\nu}\nabla^2M_T$ (8000 AdamW steps, lr $10^{-2}$, $\lambda_T=10$). The baseline uses 2048 interior points and 50 heat-flux points per face.
+
+\textbf{Baseline (thesis, RTX 5070 12GB).}
+\begin{center}
+\vspace{-4pt}
+\begin{tabular}{lcc}
+\toprule
+Recipe & Reported time & Relative $L^2$ error in $T_1$ \\
+\midrule
+Energy + two-stage & 550.62\,s & 15.71\% \\
+PDE residual + joint & 1488.15\,s & 81.21\% \\
+\bottomrule
+\end{tabular}
+\vspace{-2pt}
+\end{center}
+Both use the same networks, data and roughly the same number of iterations (6.3k--7k). Because the thesis times may cover different phases, I will re-measure the end-to-end time-to-target (stage I + stage II) under an equal optimizer budget in Week 1; all speed claims will be relative to that re-measured baseline. The reference baseline to beat is \textbf{550.62\,s to 15.71\%}. Project repo (baseline code and configs will be released here): \url{https://github.com/LiumingZeng/me2605-plate-pinn}. Hardware: one local \textbf{RTX 5070 12GB}; no course-cluster dependency.
+
+\section{Research Questions and Hypotheses}
+
+The thesis compares \emph{energy + two-stage} against \emph{residual + joint}. These recipes differ in two factors at once: the \textbf{loss factor L} (energy functional vs.\ fourth-order PDE residual) and the \textbf{training factor T} (joint optimization of $(w,T)$ vs.\ two-stage decoupling).
+
+\textbf{RQ1.} Which factor---L or T---explains the $5\times$ accuracy gap and the $63\%$ time gap? \textbf{RQ2.} Through what mechanism: spectral conditioning, gradient conflict, or both? \textbf{RQ3.} Can a conditioning-aware intervention close the gap and cut time-to-target by at least $10\%$?
+
+\textbf{H1 (spectral conditioning).} The residual is a least-squares functional of a fourth-order operator: in Fourier space its kernel scales as $|k|^8$, whereas the energy loss scales as $|k|^4$. This predicts a much larger spectral dynamic range and condition number for the residual loss, and hence slower training. \textbf{H2 (bilinear coupling).} Joint training couples $w$ and $T$ through $M_T(w,T)$, so the data, boundary and physics gradients can conflict; freezing $w$ makes the $T$-subproblem linear and removes this coupling. \textbf{H3 (interaction).} Two-stage training should help the residual loss more if the residual is more sensitive to the bilinear coupling; conversely, energy + joint may already be stable. \textbf{H4~(fix).} Gradient-norm balancing or a mixed second-order residual should close most of the gap and meet the $10\%$ target.
+
+\section{Methods and Experiments}
+
+\textbf{2$\times$2 factorial.} I will run the two missing cells---energy + joint and residual + two-stage---alongside the two thesis baselines, with identical data, networks, optimizer budget and three seeds. This decomposes the gap into a loss effect, a training effect and an interaction.
+\begin{center}
+\vspace{-5pt}
+\begin{tabular}{lcc}
+\toprule
+ & Two-stage & Joint \\
+\midrule
+Energy & thesis: 550.62\,s, 15.71\% & \emph{new cell} \\
+PDE residual & \emph{new cell} & thesis: 1488.15\,s, 81.21\% \\
+\bottomrule
+\end{tabular}
+\vspace{-2pt}
+\end{center}
+
+\textbf{Diagnostics.} (i) \emph{Hessian/Gauss--Newton spectrum} via Hessian-vector products with Lanczos/power iteration: top eigenvalues, effective rank, condition number and decay exponent, testing the $|k|^8$ vs.\ $|k|^4$ prediction. (ii) \emph{Empirical NTK} (Jacobian Gram matrix on 256 interior + 200 boundary points) and its spectrum. (iii) \emph{Gradient conflict}: cosine similarity between data, boundary and physics gradients, plus gradient-norm ratios. (iv) \emph{Error spectrum} via FFT of the $T_1$ error, and filter-normalized loss-landscape slices~\cite{li2018landscape}.
+
+\textbf{Interventions.} (i) \emph{Loss normalization}: GradNorm or NTK-based weighting; equalize gradient norms across terms. (ii) \emph{Mixed second-order form}: introduce $\phi=D\Delta w$ and solve $\Delta w=\phi/D$, $\Delta\phi=-\tfrac{1}{1-\nu}\Delta M_T$; this lowers the highest derivative from four to two. (iii) \emph{Optimizer/schedule}: AdamW vs.\ Shampoo/Muon; warmup + cosine/WSD. (iv) \emph{Architecture/initialization}: LayerNorm placement, residual scaling and init variance, with a width-transfer check (tune at width 32/128, test at 256) following the Lec~5 honest-test idea. bf16 and \texttt{torch.compile} are reported separately from the scientific comparison.
+
+\textbf{Success criteria.} Primary: the best recipe reaches $15.71\%$ in $\le\mathbf{495}$\,s ($\ge10\%$ faster than 550.62\,s). Secondary: the residual recipe reaches $15.71\%$ in $\le550$\,s ($63\%$ faster than its own 1488.15\,s). All numbers are mean $\pm$ std over three seeds, timed with CUDA events after warmup. If neither target is met, the 2$\times$2 decomposition and diagnostics still answer RQ1--RQ2. Either outcome yields a reusable diagnostic protocol for high-order PDE training.
+
+\textbf{Deliverables.} (i) the 2$\times$2 decomposition table; (ii) an open diagnostic toolkit for Hessian/NTK spectra, gradient conflict and error spectra; (iii) a conditioning-aware recipe meeting the $10\%$ target; (iv) code, report and poster.
+
+\section{Compute}
+
+One RTX 5070 12GB (local). Each stage-II run takes about 10 minutes; 12 factorial runs plus roughly 30 diagnostic/intervention runs need 7--10 GPU-hours, and reruns/ablations bring the total to about \textbf{30 GPU-hours}. I plan \textbf{6--10 GPU-hours per week}. No multi-GPU work is required. If a 5090 or 910C becomes available, I will use it only for an optional width-scaling check, not for the main claims.
+
+\section{Risks and Fallbacks}
+
+\textbf{If both factors matter:} report the interaction and diagnostics; this is a complete mechanism study. \textbf{If spectral analysis is expensive:} use Gauss--Newton on a subset and a smaller width, then verify the trend at full width. \textbf{If the residual cannot be fixed:} pivot to the depth/initialization study (4/5/6 blocks: 2.53\%/2.86\%/4.39\% in the thesis) or a pure speedrun recipe, reusing the same codebase. \textbf{Hardware:} the local RTX 5070 already works; the project does not depend on the course cluster.
+
+\textbf{Timeline.} Week 1: refactor the baseline, reproduce the thesis numbers, implement the 2$\times$2. Week 2: diagnostics and first interventions. Week 3: full runs, three seeds, ablations. Week 4 (buffer): final runs, report and poster.
+
+\begin{thebibliography}{5}
+\small
+\setlength{\itemsep}{0pt}
+\bibitem{zeng2026} L. Zeng, \emph{Analysis and Solution of Thermoelastic Deformation Problem for Thin Plates}, M.Sc. thesis, Sun Yat-sen University, 2026.
+\bibitem{eyu2018} W. E and B. Yu, The Deep Ritz method: a deep learning-based numerical algorithm for solving variational problems, \emph{Commun. Math. Stat.} 6 (2018) 1--12.
+\bibitem{raissi2019} M. Raissi, P. Perdikaris, G. E. Karniadakis, Physics-informed neural networks, \emph{J. Comput. Phys.} 378 (2019) 686--707.
+\bibitem{wang2021} S. Wang, Y. Teng, P. Perdikaris, Understanding and mitigating gradient flow pathologies in physics-informed neural networks, \emph{SIAM J. Sci. Comput.} 43 (2021) A3055--A3081.
+\bibitem{li2018landscape} H. Li, Z. Xu, G. Taylor, C. Studer, T. Goldstein, Visualizing the loss landscape of neural nets, \emph{NeurIPS} 2018.
+\end{thebibliography}
+
+\end{document}
