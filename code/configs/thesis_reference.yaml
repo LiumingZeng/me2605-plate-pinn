@@ -1,0 +1,13 @@
+# Reproduces the uncorrected thesis T1 polynomial and the literal energy loss
+# (no mean prior, no residual penalty). The analytic pair does not satisfy the
+# PDE exactly; use this only as a reference.
+output_dir: runs/thesis_reference
+
+problem:
+  consistent: false
+
+train:
+  mode: two_stage
+  loss: energy
+  energy_pde_weight: 0.0
+  mean_prior_weight: 0.0

@@ -1,0 +1,6 @@
+output_dir: runs/residual_two_stage
+
+train:
+  mode: two_stage
+  loss: residual
+  mean_prior_weight: 0.1

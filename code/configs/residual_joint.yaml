@@ -1,0 +1,6 @@
+output_dir: runs/residual_joint
+
+train:
+  mode: joint
+  loss: residual
+  mean_prior_weight: 0.1

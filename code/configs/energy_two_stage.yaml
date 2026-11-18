@@ -1,0 +1,10 @@
+# Literal potential-energy loss + two-stage training.
+# The T1 subproblem is underdetermined; use the stabilized variant for a
+# working mixed energy + residual baseline.
+output_dir: runs/energy_two_stage
+
+train:
+  mode: two_stage
+  loss: energy
+  energy_pde_weight: 0.0
+  mean_prior_weight: 0.1

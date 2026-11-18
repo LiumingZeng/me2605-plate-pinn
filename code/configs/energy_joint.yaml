@@ -1,0 +1,8 @@
+# Literal potential-energy loss + joint training.
+output_dir: runs/energy_joint
+
+train:
+  mode: joint
+  loss: energy
+  energy_pde_weight: 0.0
+  mean_prior_weight: 0.1

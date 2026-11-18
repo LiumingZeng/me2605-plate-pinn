@@ -1,0 +1,8 @@
+# Mixed energy + PDE-residual loss + joint training.
+output_dir: runs/energy_joint_stabilized
+
+train:
+  mode: joint
+  loss: energy
+  energy_pde_weight: 1.0
+  mean_prior_weight: 0.1

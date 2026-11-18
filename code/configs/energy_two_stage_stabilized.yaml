@@ -1,0 +1,9 @@
+# Mixed energy + PDE-residual loss + two-stage training (recommended working
+# energy baseline). energy_pde_weight=1.0 stabilizes the linear-in-T energy.
+output_dir: runs/energy_two_stage_stabilized
+
+train:
+  mode: two_stage
+  loss: energy
+  energy_pde_weight: 1.0
+  mean_prior_weight: 0.1
