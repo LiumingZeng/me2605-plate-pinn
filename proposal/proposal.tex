@@ -22,7 +22,8 @@
 {\large\bfseries Disentangling Energy and Residual Losses in Physics-Informed\\[1pt]
 Neural Networks for Fourth-Order Plate Bending}\\[2pt]
 {\normalsize Is the energy formulation's advantage just conditioning?}\\[2pt]
-{\small Liuming Zeng \quad ME2605 Training Neural Networks, Fall 2026 \quad November 18, 2026}
+{\small Liuming Zeng \quad ME2605 Training Neural Networks, Fall 2026 \quad November 18, 2026}\\[1pt]
+{\small Project type: B (mechanism study), with an A-style $\ge10\%$ speed validation}
 \end{center}
 \vspace{-6pt}
 
@@ -51,11 +52,11 @@ PDE residual + joint & 1488.15\,s & 81.21\% \\
 \end{tabular}
 \vspace{-2pt}
 \end{center}
-Both use the same networks, data and roughly the same number of iterations (6.3k--7k). Because the thesis times may cover different phases, I will re-measure the end-to-end time-to-target (stage I + stage II) under an equal optimizer budget in Week 1; all speed claims will be relative to that re-measured baseline. The reference baseline to beat is \textbf{550.62\,s to 15.71\%}. Project repo (baseline code and configs will be released here): \url{https://github.com/LiumingZeng/me2605-plate-pinn}. Hardware: one local \textbf{RTX 5070 12GB}; no course-cluster dependency.
+Both use the same networks and data; the thesis reports that their losses plateau at 6.3k--7k iterations. Because the baseline is my own thesis work, I have the full code, data and hyperparameters, which removes the reproduction risk. Because the thesis times may cover different phases, I will nevertheless re-measure the end-to-end time-to-target (stage I + stage II) under an equal optimizer budget in Week 1; all speed claims will be relative to that re-measured baseline. The reference baseline to beat is \textbf{550.62\,s to 15.71\%}. Project repo (baseline code and configs will be released here): \url{https://github.com/LiumingZeng/me2605-plate-pinn}. Hardware: one local \textbf{RTX 5070 12GB}; no course-cluster dependency.
 
 \section{Research Questions and Hypotheses}
 
-The thesis compares \emph{energy + two-stage} against \emph{residual + joint}. These recipes differ in two factors at once: the \textbf{loss factor L} (energy functional vs.\ fourth-order PDE residual) and the \textbf{training factor T} (joint optimization of $(w,T)$ vs.\ two-stage decoupling).
+The thesis compares \emph{energy + two-stage} against \emph{residual + joint}. These recipes differ in two factors at once: the \textbf{loss factor L} (energy functional vs.\ fourth-order PDE residual) and the \textbf{training factor T} (joint optimization of $(w,T)$ vs.\ two-stage decoupling). H1 is the condition-number question from Lec~3--4; H2 is the gradient-conflict/Adam question from Lec~7; the width-transfer check is the Lec~5 honest test at our scale.
 
 \textbf{RQ1.} Which factor---L or T---explains the $5\times$ accuracy gap and the $63\%$ time gap? \textbf{RQ2.} Through what mechanism: spectral conditioning, gradient conflict, or both? \textbf{RQ3.} Can a conditioning-aware intervention close the gap and cut time-to-target by at least $10\%$?
 
@@ -64,6 +65,7 @@ The thesis compares \emph{energy + two-stage} against \emph{residual + joint}. T
 \section{Methods and Experiments}
 
 \textbf{2$\times$2 factorial.} I will run the two missing cells---energy + joint and residual + two-stage---alongside the two thesis baselines, with identical data, networks, optimizer budget and three seeds. This decomposes the gap into a loss effect, a training effect and an interaction.
+\enlargethispage{2\baselineskip}
 \begin{center}
 \vspace{-5pt}
 \begin{tabular}{lcc}
@@ -79,7 +81,7 @@ PDE residual & \emph{new cell} & thesis: 1488.15\,s, 81.21\% \\
 
 \textbf{Diagnostics.} (i) \emph{Hessian/Gauss--Newton spectrum} via Hessian-vector products with Lanczos/power iteration: top eigenvalues, effective rank, condition number and decay exponent, testing the $|k|^8$ vs.\ $|k|^4$ prediction. (ii) \emph{Empirical NTK} (Jacobian Gram matrix on 256 interior + 200 boundary points) and its spectrum. (iii) \emph{Gradient conflict}: cosine similarity between data, boundary and physics gradients, plus gradient-norm ratios. (iv) \emph{Error spectrum} via FFT of the $T_1$ error, and filter-normalized loss-landscape slices~\cite{li2018landscape}.
 
-\textbf{Interventions.} (i) \emph{Loss normalization}: GradNorm or NTK-based weighting; equalize gradient norms across terms. (ii) \emph{Mixed second-order form}: introduce $\phi=D\Delta w$ and solve $\Delta w=\phi/D$, $\Delta\phi=-\tfrac{1}{1-\nu}\Delta M_T$; this lowers the highest derivative from four to two. (iii) \emph{Optimizer/schedule}: AdamW vs.\ Shampoo/Muon; warmup + cosine/WSD. (iv) \emph{Architecture/initialization}: LayerNorm placement, residual scaling and init variance, with a width-transfer check (tune at width 32/128, test at 256) following the Lec~5 honest-test idea. bf16 and \texttt{torch.compile} are reported separately from the scientific comparison.
+\textbf{Interventions.} (i) \emph{Loss normalization}: GradNorm or NTK-based weighting; equalize gradient norms across terms. (ii) \emph{Mixed second-order form}: introduce $\phi=D\Delta w$ and solve $\Delta w=\phi/D$, $\Delta\phi=-\tfrac{1}{1-\nu}\Delta M_T$; this lowers the highest derivative from four to two. (iii) \emph{Optimizer/schedule}: AdamW vs.\ Shampoo/Muon; warmup + cosine/WSD. (iv) \emph{Architecture/initialization}: LayerNorm placement, residual scaling and init variance, with a width-transfer check (tune at width 32/128, test at 256), a small-scale analogue of the Lec~5 honest test. bf16 and \texttt{torch.compile} are reported separately from the scientific comparison.
 
 \textbf{Success criteria.} Primary: the best recipe reaches $15.71\%$ in $\le\mathbf{495}$\,s ($\ge10\%$ faster than 550.62\,s). Secondary: the residual recipe reaches $15.71\%$ in $\le550$\,s ($63\%$ faster than its own 1488.15\,s). All numbers are mean $\pm$ std over three seeds, timed with CUDA events after warmup. If neither target is met, the 2$\times$2 decomposition and diagnostics still answer RQ1--RQ2. Either outcome yields a reusable diagnostic protocol for high-order PDE training.
 
